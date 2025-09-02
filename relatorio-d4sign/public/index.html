@@ -46,14 +46,15 @@
      */
     async function fetchAndCacheDocuments() {
         try {
-            const response = await fetch('http://127.0.0.1:5001/api/documents');
+            // CORREÇÃO: Usando URL relativa que funciona na Vercel
+            const response = await fetch('/api/documents');
             if (!response.ok) {
-                throw new Error(`Falha na conexão com o servidor: Status ${response.status}`);
+                throw new Error(`Falha na conexão com a API: Status ${response.status}`);
             }
             allDocuments = await response.json();
             displayDocuments(allDocuments); 
         } catch (error) {
-            documentList.innerHTML = `<li class="error">Erro ao carregar documentos: ${error.message}.<br><strong>Verifique se o servidor Python (backend.py) está em execução.</strong></li>`;
+            documentList.innerHTML = `<li class="error">Erro ao carregar documentos: ${error.message}.</li>`;
         }
     }
 
@@ -95,22 +96,18 @@
 
         signerDetails.innerHTML = '<p class="loading">Buscando signatários...</p>';
         try {
-            const response = await fetch(`http://127.0.0.1:5001/api/documents/${uuid}/signers`);
+            // CORREÇÃO: Usando URL relativa que funciona na Vercel
+            const response = await fetch(`/api/documents/${uuid}/signers`);
             if (!response.ok) {
                 throw new Error(`O servidor respondeu com um erro: Status ${response.status}`);
             }
             const data = await response.json();
 
-            // --- AQUI ESTÁ A CORREÇÃO ---
-            // A resposta é uma lista com um objeto dentro. Primeiro, pegamos esse objeto.
             const documentData = data[0]; 
 
-            // Agora, verificamos se esse objeto e a lista de signatários dentro dele existem.
             if (documentData && documentData.list && documentData.list.length > 0) {
                 let html = '<ul>';
-                // Iteramos sobre a lista correta: documentData.list
                 documentData.list.forEach(signer => {
-                    // Usamos 'user_name' e 'email' que são os nomes dos campos no log
                     html += `
                         <li>
                             <strong>Nome:</strong> ${signer.user_name || '<i>Aguardando informação</i>'}<br>
