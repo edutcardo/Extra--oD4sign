@@ -1,4 +1,3 @@
-/* Estilos Gerais */
 body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     background-color: #f4f7f9;
@@ -8,7 +7,6 @@ body {
     display: flex;
     justify-content: center;
 }
-
 .container {
     width: 100%;
     max-width: 1200px;
@@ -17,28 +15,15 @@ body {
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
     padding: 30px;
 }
-
 h1, h2 {
     color: #1a253c;
     border-bottom: 2px solid #eef2f5;
     padding-bottom: 10px;
     margin-top: 0;
 }
-
-h1 {
-    font-size: 28px;
-}
-
-h2 {
-    font-size: 20px;
-    margin-bottom: 15px;
-}
-
-/* Caixa de Busca */
-.search-wrapper {
-    margin: 20px 0;
-}
-
+h1 { font-size: 28px; }
+h2 { font-size: 20px; margin-bottom: 15px; }
+.search-wrapper { margin: 20px 0; }
 #searchInput {
     width: 100%;
     padding: 12px 15px;
@@ -46,31 +31,24 @@ h2 {
     border: 1px solid #ccc;
     border-radius: 6px;
     box-sizing: border-box;
-    transition: border-color 0.3s, box-shadow 0.3s;
 }
-
 #searchInput:focus {
     border-color: #007bff;
     box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.2);
     outline: none;
 }
-
-/* Layout dos Resultados */
 .results-wrapper {
     display: grid;
     grid-template-columns: 1fr 1fr;
     gap: 30px;
     margin-top: 20px;
 }
-
 .document-list-container, .signer-details-container {
     border: 1px solid #eef2f5;
     border-radius: 6px;
     padding: 20px;
     background-color: #fcfdfe;
 }
-
-/* Lista de Documentos */
 #documentList {
     list-style: none;
     padding: 0;
@@ -78,7 +56,6 @@ h2 {
     max-height: 500px;
     overflow-y: auto;
 }
-
 #documentList li {
     padding: 12px;
     border-bottom: 1px solid #eef2f5;
@@ -86,22 +63,14 @@ h2 {
     transition: background-color 0.2s;
     word-break: break-word;
 }
-
-#documentList li:last-child {
-    border-bottom: none;
-}
-
-#documentList li:hover {
-    background-color: #f0f8ff;
-}
-
+#documentList li:last-child { border-bottom: none; }
+#documentList li:hover { background-color: #f0f8ff; }
 #documentList li.active {
     background-color: #007bff;
     color: white;
     font-weight: bold;
 }
-
-/* Detalhes dos Signatários */
+#documentList .error { color: #d9534f; font-style: italic; }
 #signerDetails .placeholder {
     color: #888;
     text-align: center;
@@ -109,21 +78,14 @@ h2 {
     background-color: #f8f9fa;
     border-radius: 5px;
 }
-#signerDetails .loading, #signerDetails .error {
+.loading, .error {
     color: #555;
     font-weight: bold;
     text-align: center;
     padding: 20px;
 }
-#signerDetails .error {
-    color: #d9534f;
-}
-
-#signerDetails ul {
-    list-style: none;
-    padding: 0;
-}
-
+.error { color: #d9534f; }
+#signerDetails ul { list-style: none; padding: 0; }
 #signerDetails li {
     background-color: #f8f9fa;
     padding: 15px;

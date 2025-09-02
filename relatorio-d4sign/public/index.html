@@ -7,7 +7,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
     <div class="container">
         <h1>Relatório Dinâmico de Documentos</h1>
         <p>Digite o nome do documento para buscar em tempo real.</p>
@@ -20,7 +19,8 @@
             <div class="document-list-container">
                 <h2>Documentos Encontrados</h2>
                 <ul id="documentList">
-                    </ul>
+                    <p class="loading">Carregando documentos...</p>
+                </ul>
             </div>
             <div class="signer-details-container">
                 <h2>Detalhes dos Signatários</h2>
@@ -31,22 +31,13 @@
         </div>
     </div>
 <script>
-    // --- Elementos do DOM ---
     const searchInput = document.getElementById('searchInput');
     const documentList = document.getElementById('documentList');
     const signerDetails = document.getElementById('signerDetails');
-
-    // --- Cache de Documentos no Front-end ---
     let allDocuments = [];
 
-    // --- Funções Principais ---
-
-    /**
-     * 1. Busca a lista completa de documentos do nosso backend e a armazena.
-     */
     async function fetchAndCacheDocuments() {
         try {
-            // CORREÇÃO: Usando URL relativa que funciona na Vercel
             const response = await fetch('/api/documents');
             if (!response.ok) {
                 throw new Error(`Falha na conexão com a API: Status ${response.status}`);
@@ -54,28 +45,22 @@
             allDocuments = await response.json();
             displayDocuments(allDocuments); 
         } catch (error) {
-            documentList.innerHTML = `<li class="error">Erro ao carregar documentos: ${error.message}.</li>`;
+            documentList.innerHTML = `<li class="error">Erro ao carregar documentos. Verifique os logs na Vercel.</li>`;
         }
     }
 
-    /**
-     * 2. Filtra a lista de documentos em cache e atualiza a interface.
-     */
     function filterDocuments() {
         const query = searchInput.value.toLowerCase();
         const filtered = query.length > 0 
-            ? allDocuments.filter(doc => doc.nameDoc.toLowerCase().includes(query))
+            ? allDocuments.filter(doc => doc.nameDoc && doc.nameDoc.toLowerCase().includes(query))
             : allDocuments;
         displayDocuments(filtered);
     }
 
-    /**
-     * 3. Renderiza a lista de documentos na tela.
-     */
     function displayDocuments(docs) {
         documentList.innerHTML = '';
         if (docs.length === 0) {
-            documentList.innerHTML = '<li>Nenhum documento encontrado com este filtro.</li>';
+            documentList.innerHTML = '<li>Nenhum documento encontrado.</li>';
             return;
         }
         docs.forEach(doc => {
@@ -87,22 +72,16 @@
         });
     }
 
-    /**
-     * 4. Busca os signatários de um documento específico no nosso backend.
-     */
     async function getSigners(uuid, listItem) {
         document.querySelectorAll('#documentList li').forEach(li => li.classList.remove('active'));
         listItem.classList.add('active');
-
         signerDetails.innerHTML = '<p class="loading">Buscando signatários...</p>';
         try {
-            // CORREÇÃO: Usando URL relativa que funciona na Vercel
             const response = await fetch(`/api/documents/${uuid}/signers`);
             if (!response.ok) {
                 throw new Error(`O servidor respondeu com um erro: Status ${response.status}`);
             }
             const data = await response.json();
-
             const documentData = data[0]; 
 
             if (documentData && documentData.list && documentData.list.length > 0) {
@@ -111,21 +90,20 @@
                     html += `
                         <li>
                             <strong>Nome:</strong> ${signer.user_name || '<i>Aguardando informação</i>'}<br>
-                            <strong>Contato (E-mail/Telefone):</strong> ${signer.email || 'N/A'}
+                            <strong>Contato:</strong> ${signer.email || 'N/A'}
                         </li>
                     `;
                 });
                 html += '</ul>';
                 signerDetails.innerHTML = html;
             } else {
-                signerDetails.innerHTML = '<p class="placeholder">Nenhum signatário encontrado para este documento.</p>';
+                signerDetails.innerHTML = '<p class="placeholder">Nenhum signatário encontrado.</p>';
             }
         } catch (error) {
-            signerDetails.innerHTML = `<p class="error">Erro ao buscar signatários: ${error.message}</p>`;
+            signerDetails.innerHTML = `<p class="error">Erro ao buscar signatários.</p>`;
         }
     }
 
-    // --- Event Listeners ---
     searchInput.addEventListener('input', filterDocuments);
     window.addEventListener('load', fetchAndCacheDocuments);
 </script>
