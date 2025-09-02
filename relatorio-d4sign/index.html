@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório Dinâmico D4Sign</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="container">
+        <h1>Relatório Dinâmico de Documentos</h1>
+        <p>Digite o nome do documento para buscar em tempo real.</p>
+
+        <div class="search-wrapper">
+            <input type="text" id="searchInput" placeholder="Digite para pesquisar documentos...">
+        </div>
+
+        <div class="results-wrapper">
+            <div class="document-list-container">
+                <h2>Documentos Encontrados</h2>
+                <ul id="documentList">
+                    </ul>
+            </div>
+            <div class="signer-details-container">
+                <h2>Detalhes dos Signatários</h2>
+                <div id="signerDetails">
+                    <p class="placeholder">Selecione um documento na lista ao lado para ver os detalhes.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+<script>
+    // --- Elementos do DOM ---
+    const searchInput = document.getElementById('searchInput');
+    const documentList = document.getElementById('documentList');
+    const signerDetails = document.getElementById('signerDetails');
+
+    // --- Cache de Documentos no Front-end ---
+    let allDocuments = [];
+
+    // --- Funções Principais ---
+
+    /**
+     * 1. Busca a lista completa de documentos do nosso backend e a armazena.
+     */
+    async function fetchAndCacheDocuments() {
+        try {
+            const response = await fetch('http://127.0.0.1:5001/api/documents');
+            if (!response.ok) {
+                throw new Error(`Falha na conexão com o servidor: Status ${response.status}`);
+            }
+            allDocuments = await response.json();
+            displayDocuments(allDocuments); 
+        } catch (error) {
+            documentList.innerHTML = `<li class="error">Erro ao carregar documentos: ${error.message}.<br><strong>Verifique se o servidor Python (backend.py) está em execução.</strong></li>`;
+        }
+    }
+
+    /**
+     * 2. Filtra a lista de documentos em cache e atualiza a interface.
+     */
+    function filterDocuments() {
+        const query = searchInput.value.toLowerCase();
+        const filtered = query.length > 0 
+            ? allDocuments.filter(doc => doc.nameDoc.toLowerCase().includes(query))
+            : allDocuments;
+        displayDocuments(filtered);
+    }
+
+    /**
+     * 3. Renderiza a lista de documentos na tela.
+     */
+    function displayDocuments(docs) {
+        documentList.innerHTML = '';
+        if (docs.length === 0) {
+            documentList.innerHTML = '<li>Nenhum documento encontrado com este filtro.</li>';
+            return;
+        }
+        docs.forEach(doc => {
+            const li = document.createElement('li');
+            li.textContent = doc.nameDoc;
+            li.dataset.uuid = doc.uuidDoc;
+            li.onclick = () => getSigners(doc.uuidDoc, li);
+            documentList.appendChild(li);
+        });
+    }
+
+    /**
+     * 4. Busca os signatários de um documento específico no nosso backend.
+     */
+    async function getSigners(uuid, listItem) {
+        document.querySelectorAll('#documentList li').forEach(li => li.classList.remove('active'));
+        listItem.classList.add('active');
+
+        signerDetails.innerHTML = '<p class="loading">Buscando signatários...</p>';
+        try {
+            const response = await fetch(`http://127.0.0.1:5001/api/documents/${uuid}/signers`);
+            if (!response.ok) {
+                throw new Error(`O servidor respondeu com um erro: Status ${response.status}`);
+            }
+            const data = await response.json();
+
+            // --- AQUI ESTÁ A CORREÇÃO ---
+            // A resposta é uma lista com um objeto dentro. Primeiro, pegamos esse objeto.
+            const documentData = data[0]; 
+
+            // Agora, verificamos se esse objeto e a lista de signatários dentro dele existem.
+            if (documentData && documentData.list && documentData.list.length > 0) {
+                let html = '<ul>';
+                // Iteramos sobre a lista correta: documentData.list
+                documentData.list.forEach(signer => {
+                    // Usamos 'user_name' e 'email' que são os nomes dos campos no log
+                    html += `
+                        <li>
+                            <strong>Nome:</strong> ${signer.user_name || '<i>Aguardando informação</i>'}<br>
+                            <strong>Contato (E-mail/Telefone):</strong> ${signer.email || 'N/A'}
+                        </li>
+                    `;
+                });
+                html += '</ul>';
+                signerDetails.innerHTML = html;
+            } else {
+                signerDetails.innerHTML = '<p class="placeholder">Nenhum signatário encontrado para este documento.</p>';
+            }
+        } catch (error) {
+            signerDetails.innerHTML = `<p class="error">Erro ao buscar signatários: ${error.message}</p>`;
+        }
+    }
+
+    // --- Event Listeners ---
+    searchInput.addEventListener('input', filterDocuments);
+    window.addEventListener('load', fetchAndCacheDocuments);
+</script>
+</body>
+</html>
