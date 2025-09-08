@@ -14,12 +14,15 @@ CRYPT_KEY = os.getenv('CRYPT_KEY')
 
 # Valida se as variáveis de ambiente foram carregadas corretamente na Vercel
 if not TOKEN_API or not CRYPT_KEY:
-    @app.route('/api/<path:path>')
+    # Esta rota de erro agora captura qualquer caminho não definido
+    @app.route('/<path:path>')
     def missing_env_vars(path=None):
         error_message = {"error": "Credenciais da API não configuradas. Verifique as Variáveis de Ambiente no painel da Vercel."}
         return jsonify(error_message), 500
 
-@app.route('/api/documents', methods=['GET'])
+# --- CORREÇÃO APLICADA AQUI ---
+# A rota foi alterada de '/api/documents' para '/documents'
+@app.route('/documents', methods=['GET'])
 def get_documents():
     """
     Busca documentos especificamente do cofre 'COOPERATIVA'.
@@ -36,12 +39,17 @@ def get_documents():
         safes_response.raise_for_status()
         safes_data = safes_response.json()
 
-        for safe in safes_data:
-            if safe.get("name_safe") == target_safe_name:
-                uuid_safe = safe.get("uuid_safe")
-                print(f"Encontrado UUID do cofre '{target_safe_name}': {uuid_safe}")
-                break
-        
+        # O retorno da API de cofres pode não ser uma lista, verificamos o tipo
+        if isinstance(safes_data, list):
+            for safe in safes_data:
+                if safe.get("name_safe") == target_safe_name:
+                    uuid_safe = safe.get("uuid_safe")
+                    print(f"Encontrado UUID do cofre '{target_safe_name}': {uuid_safe}")
+                    break
+        else:
+             print(f"ERRO: A resposta da API de cofres não foi uma lista. Resposta recebida: {safes_data}")
+             return jsonify({"error": "Formato inesperado na resposta da API de cofres."}), 500
+
         if not uuid_safe:
             print(f"ERRO: Cofre '{target_safe_name}' não foi encontrado na conta.")
             return jsonify({"error": f"O cofre '{target_safe_name}' não foi encontrado."}), 404
@@ -71,9 +79,11 @@ def get_documents():
         print(f"Erro ao buscar documentos do cofre: {e}")
         return jsonify({"error": "Não foi possível buscar os documentos do cofre.", "details": str(e)}), 500
 
-@app.route('/api/documents/<uuid_doc>/signers', methods=['GET'])
+# --- CORREÇÃO APLICADA AQUI ---
+# A rota foi alterada de '/api/documents/<uuid_doc>/signers' para '/documents/<uuid_doc>/signers'
+@app.route('/documents/<uuid_doc>/signers', methods=['GET'])
 def get_document_signers(uuid_doc):
-    # Esta função não precisa de alteração
+    # Esta função não precisa de alteração na sua lógica interna
     url = f"https://secure.d4sign.com.br/api/v1/documents/{uuid_doc}/list?tokenAPI={TOKEN_API}&cryptKey={CRYPT_KEY}"
     try:
         response = requests.get(url)
