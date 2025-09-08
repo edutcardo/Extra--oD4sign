@@ -12,7 +12,7 @@ CORS(app)
 TOKEN_API = os.getenv('TOKEN_API')
 CRYPT_KEY = os.getenv('CRYPT_KEY')
 
-# Valida se as variáveis de ambiente foram carregadas corretamente na Vercel
+# Valida se as variáveis de ambiente foram carregadas corretamente
 if not TOKEN_API or not CRYPT_KEY:
     @app.route('/api/<path:path>')
     def missing_env_vars(path=None):
@@ -21,25 +21,40 @@ if not TOKEN_API or not CRYPT_KEY:
 
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
-    """Busca a lista completa de documentos da D4Sign."""
-    url = f"https://secure.d4sign.com.br/api/v1/documents?tokenAPI={TOKEN_API}&cryptKey={CRYPT_KEY}"
-    try:
-        response = requests.get(url)
-        response.raise_for_status()
-        all_docs = response.json()
-        
-        documents_data = [
-            {"uuidDoc": doc.get("uuidDoc"), "nameDoc": doc.get("nameDoc")}
-            for doc in all_docs if doc.get("uuidDoc")
-        ]
-        
-        resp = make_response(jsonify(documents_data))
-        # Adiciona cache de 5 minutos para esta resposta na Vercel
-        resp.headers['Cache-Control'] = 's-maxage=300, stale-while-revalidate'
-        return resp
-        
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": str(e)}), 500
+    """Busca a lista completa de documentos da D4Sign, lidando com paginação."""
+    all_docs = []
+    page = 1
+    
+    # Loop para percorrer todas as páginas da API
+    while True:
+        url = f"https://secure.d4sign.com.br/api/v1/documents?tokenAPI={TOKEN_API}&cryptKey={CRYPT_KEY}&pg={page}"
+        try:
+            response = requests.get(url)
+            response.raise_for_status()
+            
+            # A resposta da API é uma lista diretamente, não um objeto com 'docs'
+            current_page_docs = response.json()
+            
+            # Se a página atual não retornar documentos, saia do loop
+            if not current_page_docs:
+                break
+                
+            all_docs.extend(current_page_docs)
+            page += 1
+            
+        except requests.exceptions.RequestException as e:
+            return jsonify({"error": str(e)}), 500
+            
+    # Filtra e extrai apenas os dados necessários
+    documents_data = [
+        {"uuidDoc": doc.get("uuidDoc"), "nameDoc": doc.get("nameDoc")}
+        for doc in all_docs if doc.get("uuidDoc")
+    ]
+    
+    resp = make_response(jsonify(documents_data))
+    # Adiciona cache de 5 minutos para esta resposta na Vercel
+    resp.headers['Cache-Control'] = 's-maxage=300, stale-while-revalidate'
+    return resp
 
 @app.route('/api/documents/<uuid_doc>/signers', methods=['GET'])
 def get_document_signers(uuid_doc):
