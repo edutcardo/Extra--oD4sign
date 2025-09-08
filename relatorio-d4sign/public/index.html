@@ -40,7 +40,7 @@
             <div class="document-list-container">
                 <h2>Documentos Encontrados</h2>
                 <ul id="documentList">
-                    <p class="loading">Carregando documentos...</p>
+                    <p class="loading">Carregando base de dados...</p>
                 </ul>
             </div>
             <div class="signer-details-container">
@@ -55,21 +55,22 @@
     const searchInput = document.getElementById('searchInput');
     const documentList = document.getElementById('documentList');
     const signerDetails = document.getElementById('signerDetails');
-    // NOVO: Seleciona o botão de pesquisa
     const searchButton = document.getElementById('searchButton');
+    
+    // Variável para guardar todos os documentos em memória
     let allDocuments = [];
 
-    // Esta função não precisa de alteração
+    // Esta função já está ótima para buscar nomes parecidos e ignorar maiúsculas/minúsculas.
     function normalizeString(str) {
         if (!str) return '';
         return str
             .toLowerCase()
             .normalize("NFD")
-            .replace(/[\u00e0-\u00f6]/g, "") // Remove acentos de forma mais simples
+            .replace(/[\u0300-\u036f]/g, "") // Remove acentos de forma mais robusta
             .replace(/[.\-_/\\()]/g, ' ');
     }
 
-    // Esta função não precisa de alteração (usamos a versão da Solução 2, que é mais robusta)
+    // Função que carrega todos os documentos da API e os armazena
     async function fetchAndCacheDocuments() {
         const loadingText = document.querySelector('.loading');
         try {
@@ -89,29 +90,43 @@
             );
             const results = await Promise.all(fetchPromises);
             allDocuments = results.flat(); 
-            displayDocuments(allDocuments);
+
+            // --- MUDANÇA PRINCIPAL 1 ---
+            // Em vez de mostrar todos os documentos, mostramos uma mensagem inicial.
+            documentList.innerHTML = '<p>Base de dados carregada. Digite um termo e pesquise.</p>';
 
         } catch (error) {
             documentList.innerHTML = `<li class="error">Erro ao carregar documentos: ${error.message}</li>`;
         }
     }
     
-    // Esta função não precisa de alteração
+    // --- MUDANÇA PRINCIPAL 2 ---
+    // Função de filtro foi ajustada para lidar com busca vazia.
     function filterDocuments() {
-        const searchTerms = normalizeString(searchInput.value).split(' ').filter(term => term.length > 0);
-        const filtered = searchTerms.length > 0
-            ? allDocuments.filter(doc => {
-                if (!doc || !doc.nameDoc) return false;
-                const normalizedDocName = normalizeString(doc.nameDoc);
-                return searchTerms.every(term => normalizedDocName.includes(term));
-            })
-            : allDocuments;
+        const searchTerm = searchInput.value.trim(); // Pega o valor e remove espaços extras
+
+        // Se o campo de busca estiver vazio, limpa a lista e avisa o usuário.
+        if (searchTerm === '') {
+            documentList.innerHTML = '<li>Por favor, digite um termo para a busca.</li>';
+            return; 
+        }
+
+        const normalizedSearch = normalizeString(searchTerm);
+        const searchTerms = normalizedSearch.split(' ').filter(term => term.length > 0);
+        
+        const filtered = allDocuments.filter(doc => {
+            if (!doc || !doc.nameDoc) return false;
+            const normalizedDocName = normalizeString(doc.nameDoc);
+            // Verifica se o nome do documento inclui TODOS os termos da busca
+            return searchTerms.every(term => normalizedDocName.includes(term));
+        });
+        
         displayDocuments(filtered);
     }
 
-    // Esta função não precisa de alteração
+    // Função para mostrar os documentos na tela (sem alteração)
     function displayDocuments(docs) {
-        documentList.innerHTML = '';
+        documentList.innerHTML = ''; // Limpa a lista antes de adicionar novos itens
         if (docs.length === 0) {
             documentList.innerHTML = '<li>Nenhum documento encontrado com o termo pesquisado.</li>';
             return;
@@ -125,7 +140,7 @@
         });
     }
 
-    // Esta função não precisa de alteração
+    // Função para buscar signatários (sem alteração)
     async function getSigners(uuid, listItem) {
         document.querySelectorAll('#documentList li').forEach(li => li.classList.remove('active'));
         listItem.classList.add('active');
@@ -156,26 +171,20 @@
         }
     }
 
-    // --- MUDANÇAS NA LÓGICA DE EVENTOS ---
+    // --- LÓGICA DE EVENTOS ---
 
-    // 1. REMOVIDO: O listener antigo que buscava a cada tecla
-    // searchInput.addEventListener('input', filterDocuments);
-
-    // 2. ADICIONADO: Listener para o clique no botão de pesquisa
+    // 1. O botão de pesquisa agora chama a função de filtro. ✅
     searchButton.addEventListener('click', filterDocuments);
 
-    // 3. ADICIONADO: Listener para a tecla "Enter" no campo de busca (melhora a usabilidade)
+    // 2. A tecla "Enter" no campo de busca também chama o filtro (ótimo para usabilidade). ✅
     searchInput.addEventListener('keyup', (event) => {
-        // Verifica se a tecla pressionada foi "Enter"
         if (event.key === 'Enter') {
-            // Impede qualquer comportamento padrão da tecla (como submeter um formulário)
             event.preventDefault();
-            // Executa a mesma função de filtro do botão
             filterDocuments();
         }
     });
 
-    // Listener para carregar os documentos iniciais quando a página abre (sem alteração)
+    // 3. Ao carregar a página, apenas busca os dados e os guarda na memória, sem exibi-los. ✅
     window.addEventListener('load', fetchAndCacheDocuments);
 </script>
 </body>
