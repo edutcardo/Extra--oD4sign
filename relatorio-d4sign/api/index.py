@@ -12,18 +12,18 @@ CORS(app)
 TOKEN_API = os.getenv('TOKEN_API')
 CRYPT_KEY = os.getenv('CRYPT_KEY')
 
-# Valida se as variáveis de ambiente foram carregadas corretamente na Vercel
+# Valida se as variáveis de ambiente foram carregadas corretamente
 if not TOKEN_API or not CRYPT_KEY:
     @app.route('/api/<path:path>')
     def missing_env_vars(path=None):
         error_message = {"error": "Credenciais da API não configuradas."}
         return jsonify(error_message), 500
 
-
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
     """
-    Busca documentos de TODOS os cofres da conta e junta os resultados.
+    Busca documentos de TODOS os cofres da conta, lidando com paginação, 
+    e junta os resultados.
     """
     print("FUNÇÃO SERVERLESS: Iniciando busca de documentos em todos os cofres...")
     
@@ -46,19 +46,33 @@ def get_documents():
                 continue
 
             print(f"Buscando documentos no cofre: '{safe_name}'...")
-            docs_url = f"https://secure.d4sign.com.br/api/v1/documents/{uuid_safe}/safe?tokenAPI={TOKEN_API}&cryptKey={CRYPT_KEY}"
             
-            docs_response = requests.get(docs_url)
-            # Usamos um 'continue' para não parar a execução se um cofre estiver vazio ou der erro
-            if docs_response.status_code != 200:
-                print(f"Aviso: Não foi possível buscar documentos do cofre '{safe_name}' (Status: {docs_response.status_code}).")
-                continue
-            
-            documents_in_safe = docs_response.json()
-            all_docs.extend(documents_in_safe) # Adiciona os documentos encontrados à lista principal
+            # --- INÍCIO DA CORREÇÃO DE PAGINAÇÃO ---
+            page = 1
+            while True:
+                # Adiciona o parâmetro &pg={page} para buscar cada página
+                docs_url = f"https://secure.d4sign.com.br/api/v1/documents/{uuid_safe}/safe?tokenAPI={TOKEN_API}&cryptKey={CRYPT_KEY}&pg={page}"
+                
+                docs_response = requests.get(docs_url)
+
+                if docs_response.status_code != 200:
+                    print(f"Aviso: Não foi possível buscar a página {page} do cofre '{safe_name}' (Status: {docs_response.status_code}). Interrompendo busca neste cofre.")
+                    break # Interrompe o loop while para este cofre
+                
+                documents_on_page = docs_response.json()
+                
+                # A API retorna um array vazio quando não há mais documentos.
+                # Esta é a condição para parar o loop.
+                if not documents_on_page:
+                    print(f"Finalizada a busca no cofre '{safe_name}'. Nenhuma documento encontrado na página {page}.")
+                    break # Sai do loop while
+                
+                print(f"Encontrados {len(documents_on_page)} documentos na página {page} do cofre '{safe_name}'.")
+                all_docs.extend(documents_on_page) # Adiciona os documentos encontrados à lista principal
+                page += 1 # Prepara para buscar a próxima página
+            # --- FIM DA CORREÇÃO DE PAGINAÇÃO ---
 
         # --- ETAPA 3: Preparar e enviar a resposta final ---
-        # Filtra a resposta para enviar apenas os campos necessários, como você já fazia
         documents_data = [
             {"uuidDoc": doc.get("uuidDoc"), "nameDoc": doc.get("nameDoc")}
             for doc in all_docs if doc.get("uuidDoc")
@@ -66,11 +80,11 @@ def get_documents():
         
         print(f"Busca finalizada. Enviando um total de {len(documents_data)} documentos de todos os cofres para o front-end.")
         resp = make_response(jsonify(documents_data))
-        resp.headers['Cache-Control'] = 's-maxage=300, stale-while-revalidate' # Mantém o cache
+        resp.headers['Cache-Control'] = 's-maxage=300, stale-while-revalidate'
         return resp
         
     except requests.exceptions.RequestException as e:
-        print(f"ERRO CRÍTICO na nova rotina de busca: {e}")
+        print(f"ERRO CRÍTICO na rotina de busca: {e}")
         return jsonify({"error": "Não foi possível buscar os cofres ou documentos.", "details": str(e)}), 500
 
 @app.route('/api/documents/<uuid_doc>/signers', methods=['GET'])
