@@ -36,6 +36,18 @@
     const signerDetails = document.getElementById('signerDetails');
     let allDocuments = [];
 
+    /**
+     * Função auxiliar para remover acentos e normalizar o texto.
+     * Ex: "DOMÊNICO" -> "domenico"
+     */
+    function normalizeString(str) {
+        if (!str) return '';
+        return str
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "");
+    }
+
     async function fetchAndCacheDocuments() {
         try {
             const response = await fetch('/api/documents');
@@ -50,10 +62,17 @@
     }
 
     function filterDocuments() {
-        const query = searchInput.value.toLowerCase();
-        const filtered = query.length > 0 
-            ? allDocuments.filter(doc => doc.nameDoc && doc.nameDoc.toLowerCase().includes(query))
+        // Normalizamos o texto da busca aqui
+        const normalizedQuery = normalizeString(searchInput.value);
+        
+        const filtered = normalizedQuery.length > 0 
+            ? allDocuments.filter(doc => {
+                // Normalizamos também o nome do documento antes de comparar
+                const normalizedDocName = normalizeString(doc.nameDoc);
+                return normalizedDocName.includes(normalizedQuery);
+            })
             : allDocuments;
+            
         displayDocuments(filtered);
     }
 
@@ -108,4 +127,5 @@
     window.addEventListener('load', fetchAndCacheDocuments);
 </script>
 </body>
+
 </html>
