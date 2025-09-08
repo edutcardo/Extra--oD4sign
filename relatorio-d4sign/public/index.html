@@ -37,15 +37,16 @@
     let allDocuments = [];
 
     /**
-     * Função auxiliar para remover acentos e normalizar o texto.
-     * Ex: "DOMÊNICO" -> "domenico"
+     * Função auxiliar para limpar e normalizar strings.
+     * Remove acentos, converte para minúsculas e substitui alguns caracteres especiais.
      */
     function normalizeString(str) {
         if (!str) return '';
         return str
             .toLowerCase()
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "");
+            .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+            .replace(/[.-]/g, ' '); // Substitui pontos e hífens por espaços para separar palavras
     }
 
     async function fetchAndCacheDocuments() {
@@ -61,15 +62,27 @@
         }
     }
 
+    /**
+     * NOVA FUNÇÃO DE FILTRAGEM - Mais inteligente e robusta
+     */
     function filterDocuments() {
-        // Normalizamos o texto da busca aqui
-        const normalizedQuery = normalizeString(searchInput.value);
-        
-        const filtered = normalizedQuery.length > 0 
+        // 1. Normaliza a string da busca e a divide em palavras-chave (termos).
+        //    Filtra termos vazios que podem surgir de múltiplos espaços.
+        const searchTerms = normalizeString(searchInput.value).split(' ').filter(term => term.length > 0);
+
+        const filtered = searchTerms.length > 0
             ? allDocuments.filter(doc => {
-                // Normalizamos também o nome do documento antes de comparar
+                // 2. Garante que o documento tem um nome para evitar erros.
+                if (!doc || !doc.nameDoc) {
+                    return false;
+                }
+                
+                // 3. Normaliza o nome do documento para uma comparação justa.
                 const normalizedDocName = normalizeString(doc.nameDoc);
-                return normalizedDocName.includes(normalizedQuery);
+
+                // 4. Verifica se CADA termo da busca está presente no nome do documento.
+                //    Isso permite buscar "Domenico Contrato" e encontrar "Contrato para Domenico".
+                return searchTerms.every(term => normalizedDocName.includes(term));
             })
             : allDocuments;
             
