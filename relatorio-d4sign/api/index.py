@@ -21,38 +21,45 @@ if not TOKEN_API or not CRYPT_KEY:
 
 @app.route('/api/documents', methods=['GET'])
 def get_documents():
-    """Busca a lista completa de documentos da D4Sign, lidando com paginação."""
+    """Busca a lista completa de documentos da D4Sign, lidando com paginação de forma segura."""
     all_docs = []
     page = 1
     
-    # Loop para percorrer todas as páginas da API
-    while True:
+    # Adiciona um limite máximo de páginas para evitar loops infinitos acidentais
+    MAX_PAGES = 100 
+
+    while page <= MAX_PAGES:
         url = f"https://secure.d4sign.com.br/api/v1/documents?tokenAPI={TOKEN_API}&cryptKey={CRYPT_KEY}&pg={page}"
         try:
             response = requests.get(url)
             response.raise_for_status()
             
-            # A resposta da API é uma lista diretamente, não um objeto com 'docs'
+            # Verificação crucial: tenta decodificar o JSON.
+            # Se a resposta for vazia ou não for um JSON válido (ex: erro), um erro ocorrerá.
             current_page_docs = response.json()
             
-            # Se a página atual não retornar documentos, saia do loop
-            if not current_page_docs:
-                break
+            # A API retorna uma lista. Se a lista estiver vazia (ou não for uma lista), paramos.
+            if not isinstance(current_page_docs, list) or not current_page_docs:
+                break # Condição de parada segura: sai do loop se não houver mais documentos.
                 
             all_docs.extend(current_page_docs)
             page += 1
             
         except requests.exceptions.RequestException as e:
-            return jsonify({"error": str(e)}), 500
-            
-    # Filtra e extrai apenas os dados necessários
+            # Se uma requisição falhar (ex: 404, 500), para o processo e retorna o erro.
+            print(f"Erro ao buscar a página {page}: {e}")
+            return jsonify({"error": f"Erro na comunicação com a API D4Sign na página {page}. Detalhes: {e}"}), 500
+        except ValueError:
+            # Se a resposta não for um JSON válido (pode acontecer na última página),
+            # consideramos que a lista de documentos terminou.
+            break
+
     documents_data = [
         {"uuidDoc": doc.get("uuidDoc"), "nameDoc": doc.get("nameDoc")}
         for doc in all_docs if doc.get("uuidDoc")
     ]
     
     resp = make_response(jsonify(documents_data))
-    # Adiciona cache de 5 minutos para esta resposta na Vercel
     resp.headers['Cache-Control'] = 's-maxage=300, stale-while-revalidate'
     return resp
 
@@ -66,7 +73,6 @@ def get_document_signers(uuid_doc):
         data = response.json()
         
         resp = make_response(jsonify(data))
-        # Garante que os detalhes dos signatários nunca fiquem em cache
         resp.headers['Cache-Control'] = 'no-cache, no-store, must-revalidate'
         return resp
         
