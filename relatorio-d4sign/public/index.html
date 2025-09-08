@@ -5,42 +5,21 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Relatório Dinâmico D4Sign</title>
     <link rel="stylesheet" href="style.css">
-    <style>
-        .search-wrapper {
-            display: flex;
-            align-items: center;
-            gap: 8px; /* Espaço entre o input e o botão */
-        }
-        #searchInput {
-            flex-grow: 1; /* Faz o campo de busca ocupar o espaço disponível */
-        }
-        #searchButton {
-            padding: 10px 20px;
-            border: 1px solid #ccc;
-            background-color: #f0f0f0;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-        #searchButton:hover {
-            background-color: #e0e0e0;
-        }
-    </style>
 </head>
 <body>
     <div class="container">
         <h1>Relatório Dinâmico de Documentos</h1>
-        <p>Digite o nome do documento e clique em "Pesquisar".</p>
+        <p>Digite o nome do documento para buscar em tempo real.</p>
 
         <div class="search-wrapper">
             <input type="text" id="searchInput" placeholder="Digite para pesquisar documentos...">
-            <button id="searchButton">Pesquisar</button>
         </div>
 
         <div class="results-wrapper">
             <div class="document-list-container">
                 <h2>Documentos Encontrados</h2>
                 <ul id="documentList">
-                    <p class="loading">Carregando base de dados...</p>
+                    <p class="loading">Carregando documentos...</p>
                 </ul>
             </div>
             <div class="signer-details-container">
@@ -55,80 +34,65 @@
     const searchInput = document.getElementById('searchInput');
     const documentList = document.getElementById('documentList');
     const signerDetails = document.getElementById('signerDetails');
-    const searchButton = document.getElementById('searchButton');
-    
-    // Variável para guardar todos os documentos em memória
     let allDocuments = [];
 
-    // Esta função já está ótima para buscar nomes parecidos e ignorar maiúsculas/minúsculas.
+    /**
+     * Função auxiliar para limpar e normalizar strings.
+     * Remove acentos, converte para minúsculas e substitui alguns caracteres especiais.
+     */
     function normalizeString(str) {
         if (!str) return '';
         return str
             .toLowerCase()
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Remove acentos de forma mais robusta
-            .replace(/[.\-_/\\()]/g, ' ');
+            .replace(/[\u0300-\u036f]/g, "") // Remove acentos
+            .replace(/[.-]/g, ' '); // Substitui pontos e hífens por espaços para separar palavras
     }
 
-    // Função que carrega todos os documentos da API e os armazena
     async function fetchAndCacheDocuments() {
-        const loadingText = document.querySelector('.loading');
         try {
-            loadingText.textContent = '1/2 Buscando cofres...';
-            const safesResponse = await fetch('/api/safes');
-            if (!safesResponse.ok) throw new Error('Falha ao buscar cofres.');
-            const safes = await safesResponse.json();
-            
-            if (!safes || safes.length === 0) {
-                loadingText.textContent = 'Nenhum cofre encontrado.';
-                return;
+            const response = await fetch('/api/documents');
+            if (!response.ok) {
+                throw new Error(`Falha na conexão com a API: Status ${response.status}`);
             }
-
-            loadingText.textContent = `2/2 Carregando documentos de ${safes.length} cofre(s)...`;
-            const fetchPromises = safes.map(safe => 
-                fetch(`/api/safes/${safe.uuid_safe}/documents`).then(res => res.ok ? res.json() : [])
-            );
-            const results = await Promise.all(fetchPromises);
-            allDocuments = results.flat(); 
-
-            // --- MUDANÇA PRINCIPAL 1 ---
-            // Em vez de mostrar todos os documentos, mostramos uma mensagem inicial.
-            documentList.innerHTML = '<p>Base de dados carregada. Digite um termo e pesquise.</p>';
-
+            allDocuments = await response.json();
+            displayDocuments(allDocuments); 
         } catch (error) {
-            documentList.innerHTML = `<li class="error">Erro ao carregar documentos: ${error.message}</li>`;
+            documentList.innerHTML = `<li class="error">Erro ao carregar documentos. Verifique os logs na Vercel.</li>`;
         }
     }
-    
-    // --- MUDANÇA PRINCIPAL 2 ---
-    // Função de filtro foi ajustada para lidar com busca vazia.
+
+    /**
+     * NOVA FUNÇÃO DE FILTRAGEM - Mais inteligente e robusta
+     */
     function filterDocuments() {
-        const searchTerm = searchInput.value.trim(); // Pega o valor e remove espaços extras
+        // 1. Normaliza a string da busca e a divide em palavras-chave (termos).
+        //    Filtra termos vazios que podem surgir de múltiplos espaços.
+        const searchTerms = normalizeString(searchInput.value).split(' ').filter(term => term.length > 0);
 
-        // Se o campo de busca estiver vazio, limpa a lista e avisa o usuário.
-        if (searchTerm === '') {
-            documentList.innerHTML = '<li>Por favor, digite um termo para a busca.</li>';
-            return; 
-        }
+        const filtered = searchTerms.length > 0
+            ? allDocuments.filter(doc => {
+                // 2. Garante que o documento tem um nome para evitar erros.
+                if (!doc || !doc.nameDoc) {
+                    return false;
+                }
+                
+                // 3. Normaliza o nome do documento para uma comparação justa.
+                const normalizedDocName = normalizeString(doc.nameDoc);
 
-        const normalizedSearch = normalizeString(searchTerm);
-        const searchTerms = normalizedSearch.split(' ').filter(term => term.length > 0);
-        
-        const filtered = allDocuments.filter(doc => {
-            if (!doc || !doc.nameDoc) return false;
-            const normalizedDocName = normalizeString(doc.nameDoc);
-            // Verifica se o nome do documento inclui TODOS os termos da busca
-            return searchTerms.every(term => normalizedDocName.includes(term));
-        });
-        
+                // 4. Verifica se CADA termo da busca está presente no nome do documento.
+                //    Isso permite buscar "Domenico Contrato" e encontrar "Contrato para Domenico".
+                return searchTerms.every(term => normalizedDocName.includes(term));
+            })
+            : allDocuments;
+            
         displayDocuments(filtered);
     }
 
-    // Função para mostrar os documentos na tela (sem alteração)
     function displayDocuments(docs) {
-        documentList.innerHTML = ''; // Limpa a lista antes de adicionar novos itens
+        documentList.innerHTML = '';
         if (docs.length === 0) {
-            documentList.innerHTML = '<li>Nenhum documento encontrado com o termo pesquisado.</li>';
+            documentList.innerHTML = '<li>Nenhum documento encontrado.</li>';
             return;
         }
         docs.forEach(doc => {
@@ -140,14 +104,15 @@
         });
     }
 
-    // Função para buscar signatários (sem alteração)
     async function getSigners(uuid, listItem) {
         document.querySelectorAll('#documentList li').forEach(li => li.classList.remove('active'));
         listItem.classList.add('active');
         signerDetails.innerHTML = '<p class="loading">Buscando signatários...</p>';
         try {
             const response = await fetch(`/api/documents/${uuid}/signers`);
-            if (!response.ok) throw new Error(`Status ${response.status}`);
+            if (!response.ok) {
+                throw new Error(`O servidor respondeu com um erro: Status ${response.status}`);
+            }
             const data = await response.json();
             const documentData = data[0]; 
 
@@ -171,21 +136,9 @@
         }
     }
 
-    // --- LÓGICA DE EVENTOS ---
-
-    // 1. O botão de pesquisa agora chama a função de filtro. ✅
-    searchButton.addEventListener('click', filterDocuments);
-
-    // 2. A tecla "Enter" no campo de busca também chama o filtro (ótimo para usabilidade). ✅
-    searchInput.addEventListener('keyup', (event) => {
-        if (event.key === 'Enter') {
-            event.preventDefault();
-            filterDocuments();
-        }
-    });
-
-    // 3. Ao carregar a página, apenas busca os dados e os guarda na memória, sem exibi-los. ✅
+    searchInput.addEventListener('input', filterDocuments);
     window.addEventListener('load', fetchAndCacheDocuments);
 </script>
 </body>
+
 </html>
