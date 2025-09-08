@@ -12,14 +12,14 @@
         <p>Digite o nome do documento para buscar em tempo real.</p>
 
         <div class="search-wrapper">
-            <input type="text" id="searchInput" placeholder="Digite para pesquisar documentos...">
+            <input type="text" id="searchInput" placeholder="Digite para pesquisar documentos..." disabled>
         </div>
 
         <div class="results-wrapper">
             <div class="document-list-container">
                 <h2>Documentos Encontrados</h2>
                 <ul id="documentList">
-                    <p class="loading">Carregando documentos...</p>
+                    <p class="loading">1/2 Buscando cofres...</p>
                 </ul>
             </div>
             <div class="signer-details-container">
@@ -34,58 +34,66 @@
     const searchInput = document.getElementById('searchInput');
     const documentList = document.getElementById('documentList');
     const signerDetails = document.getElementById('signerDetails');
+    const loadingText = document.querySelector('.loading');
     let allDocuments = [];
 
-    /**
-     * Função auxiliar para limpar e normalizar strings.
-     * Remove acentos, converte para minúsculas e substitui alguns caracteres especiais.
-     */
     function normalizeString(str) {
         if (!str) return '';
         return str
             .toLowerCase()
             .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-            .replace(/[.-]/g, ' '); // Substitui pontos e hífens por espaços para separar palavras
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[.-]/g, ' ');
     }
 
+    // NOVA LÓGICA DE CARREGAMENTO
     async function fetchAndCacheDocuments() {
         try {
-            const response = await fetch('/api/documents');
-            if (!response.ok) {
-                throw new Error(`Falha na conexão com a API: Status ${response.status}`);
+            // 1. Busca a lista de cofres primeiro
+            const safesResponse = await fetch('/api/safes');
+            if (!safesResponse.ok) throw new Error('Falha ao buscar cofres.');
+            const safes = await safesResponse.json();
+            
+            if (!safes || safes.length === 0) {
+                loadingText.textContent = 'Nenhum cofre encontrado.';
+                return;
             }
-            allDocuments = await response.json();
-            displayDocuments(allDocuments); 
+
+            loadingText.textContent = `2/2 Carregando documentos de ${safes.length} cofre(s)...`;
+
+            // 2. Cria um array de "promessas" de busca, uma para cada cofre
+            const fetchPromises = safes.map(safe => 
+                fetch(`/api/safes/${safe.uuid_safe}/documents`).then(res => {
+                    if (res.ok) return res.json();
+                    console.error(`Falha ao carregar documentos do cofre ${safe.name_safe}`);
+                    return []; // Retorna array vazio em caso de erro para não quebrar o processo
+                })
+            );
+
+            // 3. Executa todas as buscas em paralelo e aguarda a conclusão
+            const results = await Promise.all(fetchPromises);
+            
+            // 4. Junta os resultados de todos os cofres em um único array
+            allDocuments = results.flat(); 
+            
+            displayDocuments(allDocuments);
+            searchInput.disabled = false; // Habilita a busca
+            searchInput.placeholder = 'Digite para pesquisar documentos...';
+
         } catch (error) {
-            documentList.innerHTML = `<li class="error">Erro ao carregar documentos. Verifique os logs na Vercel.</li>`;
+            documentList.innerHTML = `<li class="error">Erro ao carregar documentos: ${error.message}</li>`;
         }
     }
 
-    /**
-     * NOVA FUNÇÃO DE FILTRAGEM - Mais inteligente e robusta
-     */
     function filterDocuments() {
-        // 1. Normaliza a string da busca e a divide em palavras-chave (termos).
-        //    Filtra termos vazios que podem surgir de múltiplos espaços.
         const searchTerms = normalizeString(searchInput.value).split(' ').filter(term => term.length > 0);
-
         const filtered = searchTerms.length > 0
             ? allDocuments.filter(doc => {
-                // 2. Garante que o documento tem um nome para evitar erros.
-                if (!doc || !doc.nameDoc) {
-                    return false;
-                }
-                
-                // 3. Normaliza o nome do documento para uma comparação justa.
+                if (!doc || !doc.nameDoc) return false;
                 const normalizedDocName = normalizeString(doc.nameDoc);
-
-                // 4. Verifica se CADA termo da busca está presente no nome do documento.
-                //    Isso permite buscar "Domenico Contrato" e encontrar "Contrato para Domenico".
                 return searchTerms.every(term => normalizedDocName.includes(term));
             })
             : allDocuments;
-            
         displayDocuments(filtered);
     }
 
@@ -109,10 +117,9 @@
         listItem.classList.add('active');
         signerDetails.innerHTML = '<p class="loading">Buscando signatários...</p>';
         try {
+            // A URL para buscar signatários não mudou
             const response = await fetch(`/api/documents/${uuid}/signers`);
-            if (!response.ok) {
-                throw new Error(`O servidor respondeu com um erro: Status ${response.status}`);
-            }
+            if (!response.ok) throw new Error(`Status ${response.status}`);
             const data = await response.json();
             const documentData = data[0]; 
 
