@@ -85,15 +85,50 @@
         }
     }
 
+/**
+     * FUNÇÃO DE FILTRAGEM COM DEPURADOR (console.log)
+     */
     function filterDocuments() {
+        console.clear(); // Limpa o console a cada nova letra digitada
+        
+        // 1. Normaliza a string da busca e a divide em palavras-chave (termos).
         const searchTerms = normalizeString(searchInput.value).split(' ').filter(term => term.length > 0);
-        const filtered = searchTerms.length > 0
-            ? allDocuments.filter(doc => {
-                if (!doc || !doc.nameDoc) return false;
-                const normalizedDocName = normalizeString(doc.nameDoc);
-                return searchTerms.every(term => normalizedDocName.includes(term));
-            })
-            : allDocuments;
+        console.log("Buscando pelos termos:", searchTerms);
+
+        if (searchTerms.length === 0) {
+            displayDocuments(allDocuments);
+            return;
+        }
+
+        const filtered = allDocuments.filter(doc => {
+            // 2. Garante que o documento tem um nome para evitar erros.
+            if (!doc || !doc.nameDoc) {
+                return false;
+            }
+            
+            // 3. Normaliza o nome do documento para uma comparação justa.
+            const normalizedDocName = normalizeString(doc.nameDoc);
+            
+            // Log para cada documento que está sendo verificado
+            // console.log(`--- Verificando Documento: "${normalizedDocName}"`);
+
+            // 4. Verifica se CADA termo da busca está presente no nome do documento.
+            const isMatch = searchTerms.every(term => {
+                const termFound = normalizedDocName.includes(term);
+                
+                // Log para cada termo dentro de cada documento
+                // console.log(`> Termo "${term}": ${termFound ? 'ENCONTRADO' : 'NÃO ENCONTRADO'}`);
+
+                return termFound;
+            });
+
+            if (isMatch) {
+                console.log(`✅ MATCH: O documento "${normalizedDocName}" corresponde à busca.`);
+            }
+
+            return isMatch;
+        });
+            
         displayDocuments(filtered);
     }
 
