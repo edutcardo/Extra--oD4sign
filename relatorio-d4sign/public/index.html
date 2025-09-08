@@ -36,19 +36,6 @@
     const signerDetails = document.getElementById('signerDetails');
     let allDocuments = [];
 
-    /**
-     * Função auxiliar para limpar e normalizar strings.
-     * Remove acentos, converte para minúsculas e substitui alguns caracteres especiais.
-     */
-    function normalizeString(str) {
-        if (!str) return '';
-        return str
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "") // Remove acentos
-            .replace(/[.-]/g, ' '); // Substitui pontos e hífens por espaços para separar palavras
-    }
-
     async function fetchAndCacheDocuments() {
         try {
             const response = await fetch('/api/documents');
@@ -62,30 +49,11 @@
         }
     }
 
-    /**
-     * NOVA FUNÇÃO DE FILTRAGEM - Mais inteligente e robusta
-     */
     function filterDocuments() {
-        // 1. Normaliza a string da busca e a divide em palavras-chave (termos).
-        //    Filtra termos vazios que podem surgir de múltiplos espaços.
-        const searchTerms = normalizeString(searchInput.value).split(' ').filter(term => term.length > 0);
-
-        const filtered = searchTerms.length > 0
-            ? allDocuments.filter(doc => {
-                // 2. Garante que o documento tem um nome para evitar erros.
-                if (!doc || !doc.nameDoc) {
-                    return false;
-                }
-                
-                // 3. Normaliza o nome do documento para uma comparação justa.
-                const normalizedDocName = normalizeString(doc.nameDoc);
-
-                // 4. Verifica se CADA termo da busca está presente no nome do documento.
-                //    Isso permite buscar "Domenico Contrato" e encontrar "Contrato para Domenico".
-                return searchTerms.every(term => normalizedDocName.includes(term));
-            })
+        const query = searchInput.value.toLowerCase();
+        const filtered = query.length > 0 
+            ? allDocuments.filter(doc => doc.nameDoc && doc.nameDoc.toLowerCase().includes(query))
             : allDocuments;
-            
         displayDocuments(filtered);
     }
 
@@ -140,5 +108,4 @@
     window.addEventListener('load', fetchAndCacheDocuments);
 </script>
 </body>
-
 </html>
